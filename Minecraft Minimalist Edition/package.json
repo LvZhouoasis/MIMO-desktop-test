@@ -1,0 +1,15 @@
+{
+  "name": "block-world",
+  "version": "1.0.0",
+  "description": "浏览器体素沙盒《方块世界》— Three.js 原创像素风",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs 5173",
+    "dev": "node scripts/serve.mjs 5173",
+    "pack": "node node_modules/esbuild/bin/esbuild js/main.js --bundle --format=iife --outfile=dist/game.bundle.js --alias:three=./vendor/three.module.js --minify && node scripts/pack-single-html.mjs"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  }
+}

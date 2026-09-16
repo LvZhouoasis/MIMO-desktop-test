@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <script  type="text/javascript" src="https://codesandbox.io/public/sse-hooks/sse-hooks.e15ace8ccace5398a721ffec81f121de.js"></script>
+    <script  type="text/javascript" src="https://codesandbox.io/static/js/banner.d9cb10a38.js"></script>
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>鹈鹕骑车 · 场景与四季</title>
+  <style>
+    :root {
+      --bg: #1B2A33;
+      --ink: #F5F0E6;
+      --gold: #F5E6A8;
+      --muted: #9FB4B0;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+      padding: 1.25rem;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    }
+
+    h1 {
+      font-size: clamp(1.1rem, 3vw, 1.55rem);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+    }
+
+    .status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      justify-content: center;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .status strong { color: var(--gold); font-weight: 700; }
+
+    .stage {
+      position: relative;
+      width: min(940px, 100%);
+      aspect-ratio: 16 / 10;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+      background: #7EC8E3;
+    }
+
+    .stage svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hint {
+      font-size: 0.82rem;
+      line-height: 1.65;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* 姿态标签旁的节奏说明在 hint 里 */
+
+    /* ========== 场景层：用透明度过渡，避免硬切 ========== */
+    #layer-city, #layer-country, #layer-rail,
+    #road-city, #road-country, #road-rail {
+      display: inline;
+      opacity: 0;
+      transition: opacity 0.9s ease;
+    }
+
+    .scene-city #layer-city,
+    .scene-city #road-city,
+    .scene-country #layer-country,
+    .scene-country #road-country,
+    .scene-rail #layer-rail,
+    .scene-rail #road-rail {
+      opacity: 1;
+    }
+
+    /* 雪/花/落叶淡入淡出 */
+    .snow-road, .snow-rail, .blossom-layer,
+    .autumn-layer, .flake-layer {
+      transition: opacity 1.1s ease;
+    }
+
+    /* ========== 季节色板 + 同步周期变量 ========== */
+    .stage {
+      --sky-a: #B5E0F5;
+      --sky-b: #7EC8E3;
+      --far: #8FBF7A;
+      --near: #6BA35A;
+      --leaf: #4E8F42;
+      --ground: #C9C4B0;
+      --road: #5C5C5C;
+      --road-edge: #6E6E6E;
+      --sun: #FFD050;
+      --snow-road: 0;
+      --snow-rail: 0;
+      --blossom: 0;
+      --autumn-leaf: 0;
+      --flake: 0;
+      /* 轮/踏板/腿脚/车道线共用同一周期，保证同拍 */
+      --pedal-dur: 0.55s;
+      --bob-dur: 0.275s;
+      --scroll-scene: 3.2s;
+      --scroll-hills-near: 5.5s;
+      --scroll-hills-far: 10s;
+      --scroll-clouds: 22s;
+    }
+
+    .season-spring {
+      --sky-a: #C8ECF8;
+      --sky-b: #8ED4E8;
+      --far: #8FCF7A;
+      --near: #6BB85A;
+      --leaf: #5CB84A;
+      --blossom: 1;
+    }
+
+    .season-summer {
+      --sky-a: #A8DCF5;
+      --sky-b: #5BB8E0;
+      --far: #6FB85A;
+      --near: #4E9A3E;
+      --leaf: #3D8B3A;
+      --sun: #FFE066;
+    }
+
+    .season-autumn {
+      --sky-a: #F5D9B0;
+      --sky-b: #E8B87A;
+      --far: #D4A05A;
+      --near: #C47A3A;
+      --leaf: #E07A2F;
+      --ground: #D4C4A0;
+      --road: #5A5550;
+      --autumn-leaf: 1;
+    }
+
+    .season-winter {
+      --sky-a: #D8E8F5;
+      --sky-b: #A8C0D8;
+      --far: #B8C8D0;
+      --near: #A0B0B8;
+      --leaf: #8A9A90;
+      --ground: #E8EEF2;
+      --road: #6A7078;
+      --road-edge: #7A8088;
+      --sun: #F0E8C0;
+      --snow-road: 0.55;
+      --snow-rail: 0.7;
+      --flake: 1;
+    }
+
+    /* ========== 背景滚动（周期由姿态变量驱动） ========== */
+    .clouds     { animation: scroll-800 var(--scroll-clouds) linear infinite; }
+    .hills-far  { animation: scroll-400 var(--scroll-hills-far) linear infinite; }
+    .hills-near { animation: scroll-400 var(--scroll-hills-near) linear infinite; }
+    .scenery    { animation: scroll-400 var(--scroll-scene) linear infinite; }
+    .dashes     { animation: scroll-200 var(--pedal-dur) linear infinite; }
+    .speed-lines { animation: flicker var(--pedal-dur) linear infinite; }
+
+    .wheel-spin {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: spin var(--pedal-dur) linear infinite;
+    }
+    .crank-spin {
+      transform-origin: 0 0;
+      animation: spin var(--pedal-dur) linear infinite;
+    }
+    /* 腿与曲柄同周期；远侧腿相位差半圈 */
+    #leg-near {
+      transform-origin: 42px 58px;
+      animation: leg-near var(--pedal-dur) linear infinite;
+    }
+    #leg-far {
+      transform-origin: 40px 55px;
+      animation: leg-near var(--pedal-dur) linear infinite;
+      animation-delay: calc(var(--pedal-dur) * -0.5);
+    }
+    .rider-bob { animation: bob var(--bob-dur) ease-in-out infinite; }
+
+    /* 骑手落点：铁路场景骑在旁侧小路上，略低一点 */
+    .rider-place {
+      transform: translate(280px, 250px);
+    }
+    .scene-rail .rider-place {
+      transform: translate(280px, 268px);
+    }
+
+    #rider-tilt {
+      transform-origin: 0px 116px;
+      transition: transform 0.45s ease;
+    }
+    #pelican-body {
+      transform-origin: 48px 70px;
+      transition: transform 0.9s ease;
+    }
+    #bike-only {
+      transition: transform 0.9s ease, opacity 0.6s ease;
+    }
+    #wing-l, #wing-r { transition: transform 0.45s ease; }
+    #front-wheel-lift { transition: transform 0.45s ease; }
+    .hand-on-bar { transition: opacity 0.35s ease; }
+    .juggle-group { opacity: 0; transition: opacity 0.35s ease; }
+    .foot-ground { opacity: 0; transition: opacity 0.35s ease; }
+    .pedal-foot { opacity: 1; transition: opacity 0.35s ease; }
+    .interact-prop {
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+
+    /* ========== 下车互动模式：环境/车/身体全部静止，只保留互动小动作 ========== */
+    .mode-off .clouds,
+    .mode-off .hills-far,
+    .mode-off .hills-near,
+    .mode-off .scenery,
+    .mode-off .dashes,
+    .mode-off .speed-lines,
+    .mode-off .rider-bob,
+    .mode-off .wheel-spin,
+    .mode-off .crank-spin,
+    .mode-off #leg-near,
+    .mode-off #leg-far,
+    .mode-off .flake-layer,
+    .mode-off .autumn-layer,
+    .mode-off .juggle-group {
+      animation: none !important;
+    }
+    .mode-off .speed-lines { opacity: 0; }
+    .mode-off .rider-bob { transform: none; }
+
+    /* 车停到身后，轻微倾倒（仅位移过渡，无循环动画） */
+    .mode-off #bike-only {
+      transform: translate(-30px, 8px) rotate(-6deg);
+      opacity: 0.88;
+    }
+    /* 鹈鹕站到互动点，站定不走 */
+    .mode-off #rider-tilt { transform: rotate(0deg); }
+    .mode-off #pelican-body {
+      transform: translate(95px, 8px) rotate(0deg);
+    }
+    .mode-off:not(.action-live) #pelican-body,
+    .mode-off:not(.action-live) #wing-l,
+    .mode-off:not(.action-live) #wing-r {
+      animation: none !important;
+    }
+    .mode-off .hand-on-bar { opacity: 0; }
+    .mode-off .pedal-foot { opacity: 0; }
+    .mode-off .foot-ground { opacity: 1; }
+    .mode-off:not(.action-live) #wing-l,
+    .mode-off:not(.action-live) #wing-r {
+      transform: none;
+    }
+
+    /* 互动道具：按场景显示 */
+    .mode-off.scene-city #prop-city,
+    .mode-off.scene-country #prop-country,
+    .mode-off.scene-rail #prop-rail {
+      opacity: 1;
+    }
+    /* 仅「正在互动」时道具与鹈鹕有轻微动作 */
+    .mode-off.action-live #prop-city .prop-glow,
+    .mode-off.action-live #prop-country .prop-bloom,
+    .mode-off.action-live #prop-rail .prop-signal {
+      animation: prop-pulse 1s ease-in-out infinite;
+    }
+    .mode-off.action-live #pelican-body {
+      animation: interact-lean 1.2s ease-in-out infinite;
+    }
+    .mode-off.action-live #wing-r {
+      transform-origin: 55px 45px;
+      animation: wing-point 1.2s ease-in-out infinite;
+    }
+
+    /* ========== 姿态：只改周期变量与身体姿势，保证腿脚/踏板永远同拍 ========== */
+    .pose-cruise {
+      --pedal-dur: 0.55s;
+      --bob-dur: 0.275s;
+      --scroll-scene: 3.2s;
+      --scroll-hills-near: 5.5s;
+      --scroll-hills-far: 10s;
+      --scroll-clouds: 22s;
+    }
+    .pose-cruise #rider-tilt { transform: rotate(0deg); }
+    .pose-cruise #pelican-body { transform: translate(18px, -18px) rotate(0deg); }
+
+    .pose-sprint {
+      --pedal-dur: 0.28s;
+      --bob-dur: 0.14s;
+      --scroll-scene: 1.4s;
+      --scroll-hills-near: 2.2s;
+      --scroll-hills-far: 4.5s;
+      --scroll-clouds: 10s;
+    }
+    .pose-sprint #rider-tilt { transform: rotate(-7deg); }
+    .pose-sprint #pelican-body { transform: translate(18px, -18px) rotate(-10deg) translate(6px, 2px); }
+    .pose-sprint #wing-l { transform: rotate(-25deg) translateY(4px); }
+    .pose-sprint #wing-r { transform: rotate(-18deg); }
+
+    .pose-juggle {
+      --pedal-dur: 0.45s;
+      --bob-dur: 0.5s;
+      --scroll-scene: 2.4s;
+      --scroll-hills-near: 4.2s;
+      --scroll-hills-far: 8s;
+      --scroll-clouds: 16s;
+    }
+    .pose-juggle #rider-tilt { transform: rotate(0deg); }
+    .pose-juggle #pelican-body { transform: translate(18px, -28px) rotate(4deg); }
+    .pose-juggle .juggle-group { opacity: 1; }
+    .pose-juggle #wing-l {
+      opacity: 1;
+      transform: none;
+      animation: wing-flap-l var(--pedal-dur) ease-in-out infinite;
+    }
+    .pose-juggle #wing-r {
+      transform: none;
+      animation: wing-flap-r var(--pedal-dur) ease-in-out infinite;
+    }
+    .pose-juggle .ball-a { animation: juggle-a 0.9s ease-in-out infinite; }
+    .pose-juggle .ball-b { animation: juggle-b 0.9s ease-in-out infinite; }
+    .pose-juggle .ball-c { animation: juggle-c 0.9s ease-in-out infinite; }
+
+    .pose-wheelie {
+      --pedal-dur: 0.4s;
+      --bob-dur: 0.35s;
+      --scroll-scene: 2s;
+      --scroll-hills-near: 3.4s;
+      --scroll-hills-far: 6.5s;
+      --scroll-clouds: 14s;
+    }
+    .pose-wheelie #rider-tilt { transform: rotate(-16deg); }
+    .pose-wheelie #pelican-body { transform: translate(18px, -18px) rotate(-4deg) translateY(-6px); }
+    .pose-wheelie #front-wheel-lift { transform: translateY(-32px); }
+    .pose-wheelie #wing-l { transform: rotate(-30deg) translateY(-10px); }
+    .pose-wheelie #wing-r { transform: rotate(-20deg) translateY(-6px); }
+
+    .pose-relax {
+      --pedal-dur: 0.75s;
+      --bob-dur: 0.55s;
+      --scroll-scene: 4s;
+      --scroll-hills-near: 7s;
+      --scroll-hills-far: 14s;
+      --scroll-clouds: 28s;
+    }
+    .pose-relax #rider-tilt { transform: rotate(4deg); }
+    .pose-relax #pelican-body { transform: translate(12px, -14px) rotate(6deg); }
+    .pose-relax #wing-l { transform: rotate(-55deg) translate(-12px, -18px); }
+    .pose-relax #wing-r { transform: rotate(50deg) translate(8px, -14px); }
+    .pose-relax .hand-on-bar { opacity: 0; }
+
+    /* 季节粒子 / 积雪 */
+    .snow-road { opacity: var(--snow-road); }
+    .snow-rail { opacity: var(--snow-rail); }
+    .blossom-layer { opacity: var(--blossom); }
+    .autumn-layer { opacity: var(--autumn-leaf); }
+    .flake-layer { opacity: var(--flake); }
+
+    .flake-layer { animation: fall-flakes 4s linear infinite; }
+    .autumn-layer { animation: fall-leaves 3.2s linear infinite; }
+
+    @keyframes scroll-800 {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-800px); }
+    }
+    @keyframes scroll-400 {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-400px); }
+    }
+    @keyframes scroll-200 {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-200px); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-3px); }
+    }
+
+    @keyframes walk-step {
+      0%, 100% { transform: rotate(-12deg); }
+      50%      { transform: rotate(14deg); }
+    }
+    @keyframes wing-walk {
+      0%, 100% { transform: rotate(-6deg); }
+      50%      { transform: rotate(10deg); }
+    }
+    @keyframes prop-pulse {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50%      { opacity: 1; transform: scale(1.08); }
+    }
+    @keyframes interact-lean {
+      0%, 100% { transform: translate(95px, 8px) rotate(0deg); }
+      50%      { transform: translate(108px, 4px) rotate(-4deg); }
+    }
+    @keyframes wing-point {
+      0%, 100% { transform: rotate(0deg); }
+      40%      { transform: rotate(-35deg) translateY(-6px); }
+      70%      { transform: rotate(-20deg) translateY(-2px); }
+    }
+
+    /* 蹬腿：与曲柄同相位 —— 0%脚在下（腿伸直），50%脚在上（抬膝） */
+    @keyframes leg-near {
+      0%   { transform: rotate(0deg); }
+      25%  { transform: rotate(16deg); }
+      50%  { transform: rotate(30deg); }
+      75%  { transform: rotate(16deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    /* 杂耍时翅膀持续扇动，与抛球节奏呼应 */
+    @keyframes wing-flap-r {
+      0%, 100% { transform: rotate(-12deg) translateY(0); }
+      50%      { transform: rotate(28deg) translateY(6px); }
+    }
+    @keyframes wing-flap-l {
+      0%, 100% { transform: rotate(-50deg) translate(-6px, -10px); }
+      50%      { transform: rotate(-15deg) translate(2px, 0); }
+    }
+    @keyframes flicker {
+      0%, 100% { opacity: 0.25; }
+      50%      { opacity: 0.7; }
+    }
+    @keyframes juggle-a {
+      0%, 100% { transform: translate(0, 0); }
+      50%      { transform: translate(36px, -55px); }
+    }
+    @keyframes juggle-b {
+      0%, 100% { transform: translate(0, 0); }
+      50%      { transform: translate(-8px, -70px); }
+    }
+    @keyframes juggle-c {
+      0%, 100% { transform: translate(0, 0); }
+      50%      { transform: translate(-48px, -50px); }
+    }
+    @keyframes fall-flakes {
+      from { transform: translate(0, -20px); }
+      to   { transform: translate(-30px, 520px); }
+    }
+    @keyframes fall-leaves {
+      from { transform: translate(0, -10px) rotate(0deg); }
+      to   { transform: translate(-40px, 520px) rotate(180deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stage * { animation: none !important; }
+      #rider-tilt, #pelican-body, #front-wheel-lift { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>鹈鹕骑车</h1>
+  <div class="status">
+    <span>场景：<strong id="sceneTag">城市马路</strong></span>
+    <span>季节：<strong id="seasonTag">夏天</strong></span>
+    <span>姿态：<strong id="poseTag">悠闲骑</strong></span>
+    <span>状态：<strong id="actionTag">骑行中</strong></span>
+  </div>
+
+  <div class="stage scene-city season-summer pose-cruise" id="stage">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="鹈鹕在不同场景与季节骑自行车">
+      <title>鹈鹕骑车 · 多场景四季</title>
+      <defs>
+        <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--sky-a)"/>
+          <stop offset="100%" stop-color="var(--sky-b)"/>
+        </linearGradient>
+        <clipPath id="frame"><rect width="800" height="500"/></clipPath>
+      </defs>
+
+      <g clip-path="url(#frame)">
+        <!-- ===== 天空 ===== -->
+        <rect width="800" height="500" fill="url(#skyGrad)"/>
+        <g>
+          <circle cx="680" cy="80" r="48" fill="var(--sun)" opacity="0.28"/>
+          <circle cx="680" cy="80" r="26" fill="var(--sun)"/>
+        </g>
+
+        <!-- 云 -->
+        <g class="clouds" fill="#fff" opacity="0.88">
+          <g>
+            <ellipse cx="110" cy="70" rx="50" ry="18"/>
+            <ellipse cx="145" cy="62" rx="36" ry="20"/>
+            <ellipse cx="80" cy="66" rx="28" ry="14"/>
+            <ellipse cx="320" cy="115" rx="42" ry="15"/>
+            <ellipse cx="540" cy="55" rx="56" ry="20"/>
+            <ellipse cx="578" cy="48" rx="40" ry="22"/>
+            <ellipse cx="720" cy="135" rx="38" ry="14"/>
+          </g>
+          <g transform="translate(800,0)">
+            <ellipse cx="110" cy="70" rx="50" ry="18"/>
+            <ellipse cx="145" cy="62" rx="36" ry="20"/>
+            <ellipse cx="320" cy="115" rx="42" ry="15"/>
+            <ellipse cx="540" cy="55" rx="56" ry="20"/>
+            <ellipse cx="578" cy="48" rx="40" ry="22"/>
+          </g>
+        </g>
+
+        <!-- ===== 通用远山（郊外/铁路用，城市用建筑） ===== -->
+        <g class="hills-far layer" id="layer-hills-far" fill="var(--far)">
+          <path d="M0 285 Q50 235 100 260 T200 250 T300 270 T400 255 L400 360 L0 360 Z"/>
+          <path d="M400 285 Q450 235 500 260 T600 250 T700 270 T800 255 L800 360 L400 360 Z"/>
+        </g>
+
+        <!-- ========== 场景：城市 ========== -->
+        <g id="layer-city" class="layer">
+          <!-- 天际线：400px 单元平铺两份，scroll-400 无缝 -->
+          <g class="scenery">
+            <g fill="#6A7A88">
+              <rect x="10" y="160" width="50" height="200"/>
+              <rect x="70" y="200" width="40" height="160"/>
+              <rect x="120" y="140" width="55" height="220"/>
+              <rect x="185" y="190" width="35" height="170"/>
+              <rect x="230" y="155" width="48" height="205"/>
+              <rect x="290" y="175" width="42" height="185"/>
+              <rect x="345" y="130" width="45" height="230"/>
+            </g>
+            <g fill="#7A8A98">
+              <rect x="20" y="180" width="40" height="180" opacity="0.5"/>
+              <rect x="100" y="200" width="36" height="160" opacity="0.5"/>
+              <rect x="270" y="190" width="40" height="170" opacity="0.5"/>
+            </g>
+            <g fill="#FFE28A" opacity="0.75">
+              <rect x="20" y="175" width="8" height="10"/><rect x="36" y="175" width="8" height="10"/>
+              <rect x="20" y="195" width="8" height="10"/><rect x="36" y="195" width="8" height="10"/>
+              <rect x="130" y="155" width="8" height="10"/><rect x="148" y="155" width="8" height="10"/>
+              <rect x="130" y="175" width="8" height="10"/><rect x="148" y="175" width="8" height="10"/>
+              <rect x="355" y="145" width="8" height="10"/>
+            </g>
+            <!-- 第二份 -->
+            <g transform="translate(400,0)">
+              <g fill="#6A7A88">
+                <rect x="10" y="160" width="50" height="200"/>
+                <rect x="70" y="200" width="40" height="160"/>
+                <rect x="120" y="140" width="55" height="220"/>
+                <rect x="185" y="190" width="35" height="170"/>
+                <rect x="230" y="155" width="48" height="205"/>
+                <rect x="290" y="175" width="42" height="185"/>
+                <rect x="345" y="130" width="45" height="230"/>
+              </g>
+              <g fill="#7A8A98">
+                <rect x="20" y="180" width="40" height="180" opacity="0.5"/>
+                <rect x="100" y="200" width="36" height="160" opacity="0.5"/>
+                <rect x="270" y="190" width="40" height="170" opacity="0.5"/>
+              </g>
+              <g fill="#FFE28A" opacity="0.75">
+                <rect x="20" y="175" width="8" height="10"/><rect x="36" y="175" width="8" height="10"/>
+                <rect x="20" y="195" width="8" height="10"/><rect x="36" y="195" width="8" height="10"/>
+                <rect x="130" y="155" width="8" height="10"/><rect x="148" y="155" width="8" height="10"/>
+                <rect x="130" y="175" width="8" height="10"/><rect x="148" y="175" width="8" height="10"/>
+                <rect x="355" y="145" width="8" height="10"/>
+              </g>
+            </g>
+          </g>
+
+          <!-- 人行道沿：静止，不随 scenery 滚，避免缺口 -->
+          <rect x="0" y="348" width="800" height="8" fill="#B0B0A8"/>
+
+          <!-- 路灯 + 行道树：同样 400 平铺 -->
+          <g class="scenery">
+            <g stroke="#4A4A4A" stroke-width="4" fill="none">
+              <path d="M50 348 L50 220 L78 210"/>
+              <path d="M200 348 L200 230 L228 220"/>
+              <path d="M350 348 L350 215 L378 205"/>
+            </g>
+            <g fill="var(--sun)" opacity="0.85">
+              <ellipse cx="82" cy="210" rx="10" ry="6"/>
+              <ellipse cx="232" cy="220" rx="10" ry="6"/>
+              <ellipse cx="382" cy="205" rx="10" ry="6"/>
+            </g>
+            <g>
+              <rect x="140" y="300" width="8" height="48" fill="#6B5344"/>
+              <circle cx="144" cy="290" r="28" fill="var(--leaf)"/>
+              <circle cx="128" cy="300" r="16" fill="var(--leaf)"/>
+              <circle cx="160" cy="302" r="14" fill="var(--leaf)"/>
+              <circle cx="144" cy="290" r="10" fill="#FFB7C5" class="blossom-layer"/>
+              <circle cx="132" cy="300" r="7" fill="#FFB7C5" class="blossom-layer"/>
+              <circle cx="158" cy="296" r="6" fill="#FFC8D8" class="blossom-layer"/>
+
+              <rect x="280" y="295" width="8" height="53" fill="#6B5344"/>
+              <circle cx="284" cy="285" r="30" fill="var(--leaf)"/>
+              <circle cx="268" cy="296" r="16" fill="var(--leaf)"/>
+              <circle cx="302" cy="298" r="15" fill="var(--leaf)"/>
+              <circle cx="284" cy="285" r="9" fill="#FFB7C5" class="blossom-layer"/>
+            </g>
+            <g transform="translate(400,0)">
+              <g stroke="#4A4A4A" stroke-width="4" fill="none">
+                <path d="M50 348 L50 220 L78 210"/>
+                <path d="M200 348 L200 230 L228 220"/>
+                <path d="M350 348 L350 215 L378 205"/>
+              </g>
+              <g fill="var(--sun)" opacity="0.85">
+                <ellipse cx="82" cy="210" rx="10" ry="6"/>
+                <ellipse cx="232" cy="220" rx="10" ry="6"/>
+                <ellipse cx="382" cy="205" rx="10" ry="6"/>
+              </g>
+              <g>
+                <rect x="140" y="300" width="8" height="48" fill="#6B5344"/>
+                <circle cx="144" cy="290" r="28" fill="var(--leaf)"/>
+                <circle cx="128" cy="300" r="16" fill="var(--leaf)"/>
+                <circle cx="160" cy="302" r="14" fill="var(--leaf)"/>
+                <circle cx="144" cy="290" r="10" fill="#FFB7C5" class="blossom-layer"/>
+                <rect x="280" y="295" width="8" height="53" fill="#6B5344"/>
+                <circle cx="284" cy="285" r="30" fill="var(--leaf)"/>
+                <circle cx="268" cy="296" r="16" fill="var(--leaf)"/>
+                <circle cx="302" cy="298" r="15" fill="var(--leaf)"/>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <!-- ========== 场景：郊外 ========== -->
+        <g id="layer-country" class="layer">
+          <g class="hills-far" fill="var(--far)">
+            <path d="M0 285 Q50 235 100 260 T200 250 T300 270 T400 255 L400 360 L0 360 Z"/>
+            <path d="M400 285 Q450 235 500 260 T600 250 T700 270 T800 255 L800 360 L400 360 Z"/>
+          </g>
+          <g class="hills-near" fill="var(--near)">
+            <path d="M0 315 Q70 275 130 300 T250 290 T370 310 T400 300 L400 370 L0 370 Z"/>
+            <path d="M400 315 Q470 275 530 300 T650 290 T770 310 T800 300 L800 370 L400 370 Z"/>
+          </g>
+          <g class="scenery">
+            <!-- 栅栏 + 树 + 草垛：400 平铺 -->
+            <g stroke="#A08060" stroke-width="4">
+              <line x1="20" y1="330" x2="20" y2="355"/><line x1="60" y1="330" x2="60" y2="355"/>
+              <line x1="0" y1="338" x2="100" y2="338"/>
+              <line x1="180" y1="330" x2="180" y2="355"/><line x1="220" y1="330" x2="220" y2="355"/>
+              <line x1="160" y1="338" x2="240" y2="338"/>
+              <line x1="320" y1="330" x2="320" y2="355"/><line x1="360" y1="330" x2="360" y2="355"/>
+              <line x1="300" y1="338" x2="380" y2="338"/>
+            </g>
+            <g>
+              <rect x="100" y="280" width="12" height="70" fill="#6B5344"/>
+              <circle cx="106" cy="265" r="36" fill="var(--leaf)"/>
+              <circle cx="86" cy="280" r="22" fill="var(--leaf)"/>
+              <circle cx="128" cy="282" r="20" fill="var(--leaf)"/>
+              <circle cx="106" cy="265" r="10" fill="#FFB7C5" class="blossom-layer"/>
+              <circle cx="92" cy="278" r="7" fill="#FFC8D8" class="blossom-layer"/>
+              <circle cx="120" cy="270" r="6" fill="#FFB7C5" class="blossom-layer"/>
+
+              <rect x="260" y="275" width="14" height="75" fill="#6B5344"/>
+              <circle cx="267" cy="255" r="40" fill="var(--leaf)"/>
+              <circle cx="242" cy="275" r="24" fill="var(--leaf)"/>
+              <circle cx="292" cy="278" r="22" fill="var(--leaf)"/>
+              <circle cx="267" cy="255" r="11" fill="#FFB7C5" class="blossom-layer"/>
+            </g>
+            <g>
+              <ellipse cx="180" cy="345" rx="28" ry="16" fill="#C4A35A"/>
+              <g class="blossom-layer">
+                <circle cx="40" cy="350" r="4" fill="#FF8FAB"/>
+                <circle cx="80" cy="352" r="4" fill="#FFD0E0"/>
+                <circle cx="310" cy="350" r="4" fill="#FF8FAB"/>
+              </g>
+            </g>
+            <g transform="translate(400,0)">
+              <g stroke="#A08060" stroke-width="4">
+                <line x1="20" y1="330" x2="20" y2="355"/><line x1="60" y1="330" x2="60" y2="355"/>
+                <line x1="0" y1="338" x2="100" y2="338"/>
+                <line x1="180" y1="330" x2="180" y2="355"/><line x1="220" y1="330" x2="220" y2="355"/>
+                <line x1="160" y1="338" x2="240" y2="338"/>
+                <line x1="320" y1="330" x2="320" y2="355"/><line x1="360" y1="330" x2="360" y2="355"/>
+                <line x1="300" y1="338" x2="380" y2="338"/>
+              </g>
+              <g>
+                <rect x="100" y="280" width="12" height="70" fill="#6B5344"/>
+                <circle cx="106" cy="265" r="36" fill="var(--leaf)"/>
+                <circle cx="86" cy="280" r="22" fill="var(--leaf)"/>
+                <circle cx="128" cy="282" r="20" fill="var(--leaf)"/>
+                <circle cx="106" cy="265" r="10" fill="#FFB7C5" class="blossom-layer"/>
+                <rect x="260" y="275" width="14" height="75" fill="#6B5344"/>
+                <circle cx="267" cy="255" r="40" fill="var(--leaf)"/>
+                <circle cx="242" cy="275" r="24" fill="var(--leaf)"/>
+                <circle cx="292" cy="278" r="22" fill="var(--leaf)"/>
+              </g>
+              <ellipse cx="180" cy="345" rx="28" ry="16" fill="#C4A35A"/>
+            </g>
+          </g>
+        </g>
+
+        <!-- ========== 场景：铁路 ========== -->
+        <g id="layer-rail" class="layer">
+          <g class="hills-far" fill="var(--far)" opacity="0.85">
+            <path d="M0 290 Q60 250 120 270 T240 260 T360 275 T400 268 L400 350 L0 350 Z"/>
+            <path d="M400 290 Q460 250 520 270 T640 260 T760 275 T800 268 L800 350 L400 350 Z"/>
+          </g>
+          <!-- 电线杆 + 信号灯：400 平铺 -->
+          <g class="scenery">
+            <g stroke="#5A5A5A" stroke-width="3" fill="none">
+              <line x1="80" y1="200" x2="80" y2="348"/>
+              <line x1="68" y1="210" x2="92" y2="210"/>
+              <line x1="70" y1="225" x2="90" y2="225"/>
+              <line x1="280" y1="195" x2="280" y2="348"/>
+              <line x1="268" y1="205" x2="292" y2="205"/>
+              <line x1="270" y1="220" x2="290" y2="220"/>
+              <line x1="80" y1="210" x2="280" y2="205"/>
+              <line x1="280" y1="205" x2="480" y2="210"/>
+            </g>
+            <g transform="translate(150, 0)">
+              <rect x="0" y="230" width="8" height="118" fill="#555"/>
+              <rect x="-10" y="210" width="28" height="28" rx="4" fill="#333"/>
+              <circle cx="4" cy="218" r="5" fill="#E85D4C"/>
+              <circle cx="4" cy="230" r="5" fill="#3D8B4F" opacity="0.35"/>
+            </g>
+            <g transform="translate(400,0)">
+              <g stroke="#5A5A5A" stroke-width="3" fill="none">
+                <line x1="80" y1="200" x2="80" y2="348"/>
+                <line x1="68" y1="210" x2="92" y2="210"/>
+                <line x1="70" y1="225" x2="90" y2="225"/>
+                <line x1="280" y1="195" x2="280" y2="348"/>
+                <line x1="268" y1="205" x2="292" y2="205"/>
+                <line x1="270" y1="220" x2="290" y2="220"/>
+                <line x1="80" y1="210" x2="280" y2="205"/>
+                <line x1="280" y1="205" x2="480" y2="210"/>
+              </g>
+              <g transform="translate(180, 0)">
+                <rect x="0" y="235" width="8" height="113" fill="#555"/>
+                <rect x="-10" y="215" width="28" height="28" rx="4" fill="#333"/>
+                <circle cx="4" cy="223" r="5" fill="#E85D4C" opacity="0.35"/>
+                <circle cx="4" cy="235" r="5" fill="#3D8B4F"/>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <!-- ===== 路面（分场景） ===== -->
+        <!-- 城市柏油 -->
+        <g id="road-city" class="layer">
+          <rect x="0" y="355" width="800" height="6" fill="var(--ground)"/>
+          <rect x="0" y="361" width="800" height="139" fill="var(--road)"/>
+          <rect x="0" y="361" width="800" height="6" fill="var(--road-edge)"/>
+          <rect x="0" y="492" width="800" height="8" fill="#4A4A4A"/>
+          <g class="dashes" fill="#F5E6A8">
+            <rect x="10" y="424" width="60" height="8" rx="3"/>
+            <rect x="110" y="424" width="60" height="8" rx="3"/>
+            <rect x="210" y="424" width="60" height="8" rx="3"/>
+            <rect x="310" y="424" width="60" height="8" rx="3"/>
+            <rect x="410" y="424" width="60" height="8" rx="3"/>
+            <rect x="510" y="424" width="60" height="8" rx="3"/>
+            <rect x="610" y="424" width="60" height="8" rx="3"/>
+            <rect x="710" y="424" width="60" height="8" rx="3"/>
+          </g>
+          <rect class="snow-road" x="0" y="361" width="800" height="20" fill="#fff" opacity="0"/>
+          <rect class="snow-road" x="0" y="480" width="800" height="20" fill="#fff" opacity="0"/>
+        </g>
+
+        <!-- 郊外土路/乡道 -->
+        <g id="road-country" class="layer">
+          <rect x="0" y="350" width="800" height="12" fill="var(--near)" opacity="0.5"/>
+          <rect x="0" y="361" width="800" height="139" fill="#A89070"/>
+          <rect x="0" y="361" width="800" height="8" fill="#B8A080"/>
+          <rect x="0" y="492" width="800" height="8" fill="#8A7060"/>
+          <!-- 车辙 -->
+          <g class="dashes" stroke="#8A7060" stroke-width="3" fill="none" opacity="0.6">
+            <line x1="0" y1="400" x2="200" y2="400"/>
+            <line x1="0" y1="450" x2="200" y2="450"/>
+            <line x1="200" y1="400" x2="400" y2="400"/>
+            <line x1="200" y1="450" x2="400" y2="450"/>
+            <line x1="400" y1="400" x2="600" y2="400"/>
+            <line x1="400" y1="450" x2="600" y2="450"/>
+            <line x1="600" y1="400" x2="800" y2="400"/>
+            <line x1="600" y1="450" x2="800" y2="450"/>
+          </g>
+          <rect class="snow-road" x="0" y="361" width="800" height="18" fill="#fff" opacity="0"/>
+          <rect class="snow-road" x="0" y="482" width="800" height="18" fill="#fff" opacity="0"/>
+        </g>
+
+        <!-- 铁路（旁侧小路骑行 + 铁轨） -->
+        <g id="road-rail" class="layer">
+          <!-- 碎石道砟 -->
+          <rect x="0" y="348" width="800" height="30" fill="#9A9590"/>
+          <g fill="#7A7570" opacity="0.5">
+            <circle cx="20" cy="355" r="3"/><circle cx="40" cy="360" r="2"/><circle cx="70" cy="352" r="3"/>
+            <circle cx="100" cy="358" r="2"/><circle cx="140" cy="354" r="3"/><circle cx="180" cy="360" r="2"/>
+            <circle cx="220" cy="355" r="3"/><circle cx="260" cy="358" r="2"/><circle cx="300" cy="353" r="3"/>
+            <circle cx="340" cy="359" r="2"/><circle cx="380" cy="355" r="3"/><circle cx="420" cy="357" r="2"/>
+            <circle cx="460" cy="354" r="3"/><circle cx="500" cy="360" r="2"/><circle cx="540" cy="355" r="3"/>
+            <circle cx="580" cy="358" r="2"/><circle cx="620" cy="353" r="3"/><circle cx="660" cy="359" r="2"/>
+            <circle cx="700" cy="355" r="3"/><circle cx="740" cy="357" r="2"/><circle cx="780" cy="354" r="3"/>
+          </g>
+          <!-- 枕木 -->
+          <g class="scenery" fill="#6B5344">
+            <rect x="10" y="352" width="18" height="8"/><rect x="60" y="352" width="18" height="8"/>
+            <rect x="110" y="352" width="18" height="8"/><rect x="160" y="352" width="18" height="8"/>
+            <rect x="210" y="352" width="18" height="8"/><rect x="260" y="352" width="18" height="8"/>
+            <rect x="310" y="352" width="18" height="8"/><rect x="360" y="352" width="18" height="8"/>
+            <rect x="410" y="352" width="18" height="8"/><rect x="460" y="352" width="18" height="8"/>
+            <rect x="510" y="352" width="18" height="8"/><rect x="560" y="352" width="18" height="8"/>
+            <rect x="610" y="352" width="18" height="8"/><rect x="660" y="352" width="18" height="8"/>
+            <rect x="710" y="352" width="18" height="8"/><rect x="760" y="352" width="18" height="8"/>
+          </g>
+          <!-- 铁轨 -->
+          <rect x="0" y="348" width="800" height="4" fill="#8A9098"/>
+          <rect x="0" y="362" width="800" height="4" fill="#8A9098"/>
+          <!-- 旁侧骑行小路 -->
+          <rect x="0" y="378" width="800" height="122" fill="#6A6560"/>
+          <rect x="0" y="378" width="800" height="6" fill="#7A7570"/>
+          <g class="dashes" fill="#C8C0A8">
+            <rect x="20" y="430" width="40" height="5" rx="2"/>
+            <rect x="120" y="430" width="40" height="5" rx="2"/>
+            <rect x="220" y="430" width="40" height="5" rx="2"/>
+            <rect x="320" y="430" width="40" height="5" rx="2"/>
+            <rect x="420" y="430" width="40" height="5" rx="2"/>
+            <rect x="520" y="430" width="40" height="5" rx="2"/>
+            <rect x="620" y="430" width="40" height="5" rx="2"/>
+            <rect x="720" y="430" width="40" height="5" rx="2"/>
+          </g>
+          <rect class="snow-rail" x="0" y="348" width="800" height="22" fill="#fff" opacity="0"/>
+          <rect class="snow-road" x="0" y="378" width="800" height="14" fill="#fff" opacity="0"/>
+          <rect class="snow-road" x="0" y="488" width="800" height="12" fill="#fff" opacity="0"/>
+        </g>
+
+        <!-- 速度线 -->
+        <g class="speed-lines" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none">
+          <line x1="170" y1="300" x2="230" y2="300"/>
+          <line x1="155" y1="322" x2="220" y2="322"/>
+          <line x1="180" y1="342" x2="235" y2="342"/>
+        </g>
+
+        <!-- 互动道具（下车后按场景显示） -->
+        <g id="prop-city" class="interact-prop">
+          <!-- 行人按钮柱 -->
+          <rect x="430" y="300" width="10" height="55" fill="#555"/>
+          <rect x="422" y="288" width="26" height="18" rx="3" fill="#333"/>
+          <circle class="prop-glow" cx="435" cy="297" r="7" fill="#5BE584"/>
+          <text x="435" y="275" text-anchor="middle" font-size="11" fill="#fff" opacity="0.9">过街</text>
+        </g>
+        <g id="prop-country" class="interact-prop">
+          <!-- 大花丛 -->
+          <g class="prop-bloom" style="transform-origin: 450px 340px">
+            <circle cx="450" cy="320" r="12" fill="#FF8FAB"/>
+            <circle cx="438" cy="328" r="9" fill="#FFB7C5"/>
+            <circle cx="462" cy="328" r="9" fill="#FFB7C5"/>
+            <circle cx="450" cy="318" r="5" fill="#FFE28A"/>
+            <rect x="447" y="328" width="6" height="22" fill="#3D8B4F"/>
+          </g>
+          <ellipse cx="480" cy="345" rx="16" ry="8" fill="#C4A35A"/>
+        </g>
+        <g id="prop-rail" class="interact-prop">
+          <!-- 铁路信号灯（可检视） -->
+          <rect x="440" y="250" width="8" height="100" fill="#555"/>
+          <rect x="428" y="230" width="32" height="34" rx="4" fill="#333"/>
+          <circle class="prop-signal" cx="444" cy="242" r="6" fill="#E85D4C"/>
+          <circle cx="444" cy="256" r="6" fill="#3D8B4F" opacity="0.3"/>
+        </g>
+
+        <!-- ===== 鹈鹕 + 自行车 ===== -->
+        <g class="rider-place" id="rider-place">
+          <g id="rider-tilt">
+            <g class="rider-bob">
+              <g id="bike-only">
+              <!-- 后轮 -->
+              <g transform="translate(0, 80)">
+                <circle r="36" fill="none" stroke="#2A2A2A" stroke-width="8"/>
+                <circle r="28" fill="none" stroke="#D8D8D8" stroke-width="2.5"/>
+                <g class="wheel-spin" stroke="#B8B8B8" stroke-width="2">
+                  <line x1="0" y1="-26" x2="0" y2="26"/>
+                  <line x1="-26" y1="0" x2="26" y2="0"/>
+                  <line x1="-18.4" y1="-18.4" x2="18.4" y2="18.4"/>
+                  <line x1="-18.4" y1="18.4" x2="18.4" y2="-18.4"/>
+                </g>
+                <circle r="5" fill="#666"/>
+              </g>
+              <!-- 前轮 -->
+              <g id="front-wheel-lift">
+                <g transform="translate(110, 80)">
+                  <circle r="36" fill="none" stroke="#2A2A2A" stroke-width="8"/>
+                  <circle r="28" fill="none" stroke="#D8D8D8" stroke-width="2.5"/>
+                  <g class="wheel-spin" stroke="#B8B8B8" stroke-width="2">
+                    <line x1="0" y1="-26" x2="0" y2="26"/>
+                    <line x1="-26" y1="0" x2="26" y2="0"/>
+                    <line x1="-18.4" y1="-18.4" x2="18.4" y2="18.4"/>
+                    <line x1="-18.4" y1="18.4" x2="18.4" y2="-18.4"/>
+                  </g>
+                  <circle r="5" fill="#666"/>
+                </g>
+              </g>
+              <!-- 车架 -->
+              <g fill="none" stroke="#E85D4C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M0 80 L48 48 L110 80"/>
+                <path d="M48 48 L48 30"/>
+                <path d="M48 30 L110 80"/>
+                <path d="M110 80 L100 32 L120 24"/>
+              </g>
+              <ellipse cx="50" cy="28" rx="13" ry="4.5" fill="#333"/>
+              <path d="M120 24 L136 20" stroke="#333" stroke-width="5" stroke-linecap="round" fill="none"/>
+              <!-- 曲柄 + 脚（脚固定在脚踏上，随曲柄转动） -->
+              <g transform="translate(48, 68)">
+                <circle r="6" fill="#444"/>
+                <g class="crank-spin">
+                  <line x1="0" y1="0" x2="0" y2="24" stroke="#555" stroke-width="5" stroke-linecap="round"/>
+                  <rect x="-11" y="21" width="22" height="6" rx="2" fill="#333"/>
+                  <ellipse class="pedal-foot" cx="0" cy="24" rx="11" ry="5" fill="#F0A030"/>
+                  <line x1="0" y1="0" x2="0" y2="-24" stroke="#555" stroke-width="5" stroke-linecap="round"/>
+                  <rect x="-11" y="-27" width="22" height="6" rx="2" fill="#333"/>
+                  <ellipse class="pedal-foot" cx="0" cy="-24" rx="11" ry="5" fill="#E09020" opacity="0.8"/>
+                </g>
+              </g>
+              </g>
+              <!-- 鹈鹕 -->
+              <g id="pelican-body" transform="translate(18,-18)">
+                <g id="leg-far" stroke="#E09020" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.75">
+                  <path d="M40 55 L52 88 L46 108"/>
+                  <ellipse class="foot-ground" cx="46" cy="110" rx="10" ry="4" fill="#E09020" stroke="none"/>
+                </g>
+                <ellipse cx="48" cy="52" rx="44" ry="36" fill="#FAFAF6"/>
+                <ellipse cx="56" cy="60" rx="28" ry="22" fill="#E4E0D4"/>
+                <path d="M10 48 Q-8 36 6 26 Q16 40 18 50 Z" fill="#E8E4D8"/>
+                <g id="wing-r" style="transform-origin: 55px 45px">
+                  <path d="M42 38 Q78 32 100 55 Q82 72 52 70 Q36 58 42 38 Z" fill="#F2EFE6"/>
+                  <path d="M50 48 Q76 46 92 58" fill="none" stroke="#D4D0C4" stroke-width="2"/>
+                  <path d="M52 56 Q72 55 86 64" fill="none" stroke="#D4D0C4" stroke-width="2"/>
+                </g>
+                <g id="wing-l" opacity="0" style="transform-origin: 40px 40px">
+                  <path d="M20 40 Q-10 20 -20 35 Q-5 55 30 55 Z" fill="#EDEAE0"/>
+                </g>
+                <g id="leg-near" stroke="#F0A030" stroke-width="7.5" stroke-linecap="round" fill="none">
+                  <path d="M42 58 L56 90 L50 108"/>
+                  <ellipse class="foot-ground" cx="50" cy="110" rx="11" ry="4.5" fill="#F0A030" stroke="none"/>
+                </g>
+                <!-- 脚已移到曲柄上，随踏板转动 -->
+                <path d="M74 42 Q96 18 102 -2" fill="none" stroke="#FAFAF6" stroke-width="18" stroke-linecap="round"/>
+                <path d="M74 42 Q96 18 102 -2" fill="none" stroke="#E4E0D4" stroke-width="7" stroke-linecap="round" opacity="0.3"/>
+                <circle cx="108" cy="-8" r="22" fill="#FAFAF6"/>
+                <path d="M98 -24 Q104 -36 112 -26" fill="none" stroke="#E8E4D8" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="118" cy="-11" r="5.5" fill="#1A1A1A"/>
+                <circle cx="120" cy="-13" r="1.8" fill="#fff"/>
+                <path d="M124 -6 L178 -3 L126 8 Z" fill="#F0A030"/>
+                <path d="M168 -3 L180 1 L166 6 Z" fill="#E07820"/>
+                <path d="M124 8 Q152 34 168 4 Q148 14 126 10 Z" fill="#F5C56A"/>
+                <path d="M128 10 Q148 26 160 6" fill="none" stroke="#E0A840" stroke-width="1.5" opacity="0.75"/>
+                <circle cx="104" cy="0" r="5" fill="#F5A0A0" opacity="0.35"/>
+              </g>
+              <g class="hand-on-bar">
+                <circle cx="136" cy="20" r="5" fill="#FAFAF6"/>
+                <circle cx="136" cy="20" r="2" fill="#E4E0D4"/>
+              </g>
+              <g class="juggle-group" transform="translate(90, -40)">
+                <g class="ball-a">
+                  <circle cx="0" cy="0" r="10" fill="#E85D4C"/>
+                  <circle cx="-3" cy="-3" r="3" fill="#fff" opacity="0.35"/>
+                </g>
+                <g class="ball-b">
+                  <circle cx="20" cy="0" r="10" fill="#F5C56A"/>
+                  <circle cx="17" cy="-3" r="3" fill="#fff" opacity="0.35"/>
+                </g>
+                <g class="ball-c">
+                  <circle cx="40" cy="0" r="10" fill="#5BA3C9"/>
+                  <circle cx="37" cy="-3" r="3" fill="#fff" opacity="0.35"/>
+                </g>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <!-- ===== 季节粒子（顶层） ===== -->
+        <!-- 冬雪 -->
+        <g class="flake-layer" fill="#fff" opacity="0">
+          <circle cx="40" cy="20" r="3"/><circle cx="90" cy="50" r="2"/>
+          <circle cx="140" cy="10" r="2.5"/><circle cx="200" cy="80" r="3"/>
+          <circle cx="260" cy="30" r="2"/><circle cx="320" cy="60" r="2.5"/>
+          <circle cx="380" cy="15" r="3"/><circle cx="440" cy="70" r="2"/>
+          <circle cx="500" cy="40" r="2.5"/><circle cx="560" cy="90" r="3"/>
+          <circle cx="620" cy="25" r="2"/><circle cx="680" cy="55" r="2.5"/>
+          <circle cx="740" cy="35" r="3"/><circle cx="780" cy="75" r="2"/>
+          <circle cx="60" cy="120" r="2"/><circle cx="180" cy="140" r="2.5"/>
+          <circle cx="300" cy="110" r="2"/><circle cx="420" cy="150" r="3"/>
+          <circle cx="540" cy="125" r="2"/><circle cx="660" cy="145" r="2.5"/>
+          <circle cx="760" cy="115" r="2"/>
+          <g transform="translate(0,-160)">
+            <circle cx="40" cy="20" r="3"/><circle cx="140" cy="10" r="2.5"/>
+            <circle cx="260" cy="30" r="2"/><circle cx="380" cy="15" r="3"/>
+            <circle cx="500" cy="40" r="2.5"/><circle cx="620" cy="25" r="2"/>
+            <circle cx="740" cy="35" r="3"/>
+          </g>
+        </g>
+        <!-- 秋叶 -->
+        <g class="autumn-layer" opacity="0">
+          <g fill="#E07A2F">
+            <ellipse cx="50" cy="30" rx="5" ry="3" transform="rotate(20 50 30)"/>
+            <ellipse cx="160" cy="60" rx="5" ry="3" transform="rotate(-30 160 60)"/>
+            <ellipse cx="280" cy="20" rx="4" ry="2.5" transform="rotate(40 280 20)"/>
+            <ellipse cx="400" cy="70" rx="5" ry="3" transform="rotate(-15 400 70)"/>
+            <ellipse cx="520" cy="35" rx="4" ry="2.5" transform="rotate(50 520 35)"/>
+            <ellipse cx="640" cy="80" rx="5" ry="3" transform="rotate(-25 640 80)"/>
+            <ellipse cx="760" cy="45" rx="4" ry="2.5" transform="rotate(10 760 45)"/>
+          </g>
+          <g fill="#C45A20">
+            <ellipse cx="100" cy="100" rx="4" ry="2.5" transform="rotate(35 100 100)"/>
+            <ellipse cx="220" cy="130" rx="5" ry="3" transform="rotate(-40 220 130)"/>
+            <ellipse cx="340" cy="95" rx="4" ry="2.5" transform="rotate(15 340 95)"/>
+            <ellipse cx="460" cy="140" rx="5" ry="3" transform="rotate(-20 460 140)"/>
+            <ellipse cx="580" cy="110" rx="4" ry="2.5" transform="rotate(45 580 110)"/>
+            <ellipse cx="700" cy="150" rx="5" ry="3" transform="rotate(-10 700 150)"/>
+          </g>
+          <g transform="translate(0,-180)">
+            <ellipse cx="50" cy="30" rx="5" ry="3"/>
+            <ellipse cx="280" cy="20" rx="4" ry="2.5"/>
+            <ellipse cx="520" cy="35" rx="4" ry="2.5"/>
+            <ellipse cx="760" cy="45" rx="4" ry="2.5"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <p class="hint">
+    骑行约 14–22 秒后会随机下车，按当前场景互动（过街按钮 / 花丛 / 信号灯）再上车<br />
+    场景约 16–22 秒切换 · 季节约 20–28 秒随机变换 · 腿脚与踏板同步
+  </p>
+
+  <script>
+    (function () {
+      const stage = document.getElementById("stage");
+      const sceneTag = document.getElementById("sceneTag");
+      const seasonTag = document.getElementById("seasonTag");
+      const poseTag = document.getElementById("poseTag");
+      const wingL = document.getElementById("wing-l");
+
+      const actionTag = document.getElementById("actionTag");
+
+      const scenes = [
+        { id: "scene-city", name: "城市马路", road: "road-city", interact: "按过街按钮" },
+        { id: "scene-country", name: "郊外小路", road: "road-country", interact: "闻路边花丛" },
+        { id: "scene-rail", name: "铁路旁", road: "road-rail", interact: "查看信号灯" }
+      ];
+      const seasons = [
+        { id: "season-spring", name: "春天" },
+        { id: "season-summer", name: "夏天" },
+        { id: "season-autumn", name: "秋天" },
+        { id: "season-winter", name: "冬天" }
+      ];
+      const poses = [
+        { id: "pose-cruise", name: "悠闲骑" },
+        { id: "pose-sprint", name: "快骑冲刺" },
+        { id: "pose-juggle", name: "杂耍骑车" },
+        { id: "pose-wheelie", name: "翘头特技" },
+        { id: "pose-relax", name: "脱手闲骑" }
+      ];
+
+      const sceneClasses = scenes.map(s => s.id);
+      const seasonClasses = seasons.map(s => s.id);
+      const poseClasses = poses.map(p => p.id);
+
+      let curScene = 0, curSeason = 0, curPose = 0;
+      let tScene, tSeason, tPose, tOff, tBack;
+      let mode = "ride"; // ride | off
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function pickDifferent(len, cur) {
+        let n = cur;
+        while (n === cur && len > 1) n = Math.floor(Math.random() * len);
+        return n;
+      }
+
+      function applyScene(i) {
+        curScene = i;
+        const s = scenes[i];
+        stage.classList.remove(...sceneClasses);
+        stage.classList.add(s.id);
+        sceneTag.textContent = s.name;
+        if (mode === "off") actionTag.textContent = s.interact;
+      }
+
+      function applySeason(i) {
+        curSeason = i;
+        const s = seasons[i];
+        stage.classList.remove(...seasonClasses);
+        stage.classList.add(s.id);
+        seasonTag.textContent = s.name;
+      }
+
+      function applyPose(i) {
+        if (mode === "off") return;
+        curPose = i;
+        const p = poses[i];
+        stage.classList.remove(...poseClasses);
+        stage.classList.add(p.id);
+        if (p.id === "pose-juggle") wingL.style.opacity = "1";
+        else if (p.id === "pose-relax") wingL.style.opacity = "0.9";
+        else wingL.style.opacity = "0";
+        poseTag.textContent = p.name;
+      }
+
+      function enterOff() {
+        if (reduced) return;
+        mode = "off";
+        clearTimeout(tPose);
+        stage.classList.remove(...poseClasses);
+        stage.classList.add("pose-cruise", "mode-off");
+        poseTag.textContent = "步行";
+        actionTag.textContent = "下车中…";
+        wingL.style.opacity = "0";
+
+        // 站定后开始互动（环境与车保持静止）
+        clearTimeout(tBack);
+        tBack = setTimeout(() => {
+          stage.classList.add("action-live");
+          actionTag.textContent = scenes[curScene].interact;
+        }, 900);
+
+        // 互动结束后上车
+        const stay = 4500 + Math.random() * 2500;
+        tOff = setTimeout(enterRide, 1000 + stay);
+      }
+
+      function enterRide() {
+        mode = "ride";
+        clearTimeout(tOff);
+        clearTimeout(tBack);
+        stage.classList.remove("mode-off", "action-live");
+        applyPose(curPose);
+        actionTag.textContent = "骑行中";
+        schedulePose();
+        scheduleDismount();
+      }
+
+      function scheduleDismount() {
+        clearTimeout(tOff);
+        if (reduced) return;
+        // 骑约 14–22 秒后下车
+        tOff = setTimeout(enterOff, 14000 + Math.random() * 8000);
+      }
+
+      function scheduleScene() {
+        clearTimeout(tScene);
+        if (reduced) return;
+        // 场景约 16–22 秒，够看清再换
+        tScene = setTimeout(() => {
+          applyScene(pickDifferent(scenes.length, curScene));
+          scheduleScene();
+        }, 16000 + Math.random() * 6000);
+      }
+
+      function scheduleSeason() {
+        clearTimeout(tSeason);
+        if (reduced) return;
+        // 季节约 20–28 秒，避免切换过频
+        tSeason = setTimeout(() => {
+          applySeason(pickDifferent(seasons.length, curSeason));
+          scheduleSeason();
+        }, 20000 + Math.random() * 8000);
+      }
+
+      function schedulePose() {
+        clearTimeout(tPose);
+        if (reduced) return;
+        // 姿态约 5.5–8 秒
+        tPose = setTimeout(() => {
+          applyPose(pickDifferent(poses.length, curPose));
+          schedulePose();
+        }, 5500 + Math.random() * 2500);
+      }
+
+      // init
+      applyScene(0);
+      applySeason(1);
+      applyPose(0);
+      scheduleScene();
+      scheduleSeason();
+      schedulePose();
+      scheduleDismount();
+    })();
+  </script>
+  <script crossorigin type="text/javascript" src="https://codesandbox.io/static/js/watermark-button.eeb14a97b.js"></script>
+  </body>
+</html>
