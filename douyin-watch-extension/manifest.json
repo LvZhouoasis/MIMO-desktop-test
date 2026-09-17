@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "抖音关注监控",
+  "version": "1.0.0",
+  "description": "监控你关注的抖音博主有没有更新，新视频立刻推送到微信（Server酱）。数据仅保存在本地浏览器。",
+  "permissions": ["storage", "alarms", "tabs", "scripting", "contextMenus"],
+  "host_permissions": [
+    "https://www.douyin.com/*",
+    "https://sctapi.ftqq.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "抖音关注监控"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.douyin.com/*"],
+      "js": ["src/content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/parser.js"],
+      "matches": ["https://www.douyin.com/*"]
+    }
+  ]
+}

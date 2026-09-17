@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>抖音关注监控</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <!-- 引导：第一次使用 -->
+    <div id="onboard" class="onboard hidden">
+      <h1>抖音关注监控</h1>
+      <p class="lead">监控你关注的博主，有更新就推到微信。只需 3 步。</p>
+
+      <section class="step">
+        <div class="step-no">1</div>
+        <div>
+          <h2>获取微信推送 Key</h2>
+          <p>用手机微信扫码或搜索关注服务号 <b>「方糖」</b>，然后打开网页登录并复制 Key（以 <code>SCT</code> 开头）。</p>
+          <a class="btn primary" href="https://sct.ftqq.com/" target="_blank" rel="noopener">打开 sct.ftqq.com 获取 Key</a>
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-no">2</div>
+        <div>
+          <h2>粘贴 Key</h2>
+          <input id="onboardKey" type="text" placeholder="SCT 开头的 SendKey" autocomplete="off" />
+        </div>
+      </section>
+
+      <section class="step">
+        <div class="step-no">3</div>
+        <div>
+          <h2>测试是否能收到</h2>
+          <button id="onboardTest" class="btn">发送测试通知到微信</button>
+          <p id="onboardMsg" class="msg"></p>
+        </div>
+      </section>
+
+      <button id="onboardDone" class="btn primary wide" disabled>完成，开始使用</button>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="main" class="hidden">
+      <header>
+        <div class="brand">
+          <span class="dot" id="statusDot"></span>
+          <strong>抖音关注监控</strong>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="enabledToggle" />
+          <span>自动</span>
+        </label>
+      </header>
+
+      <section class="card">
+        <div class="row">
+          <button id="btnAddCurrent" class="primary">+ 当前页博主</button>
+          <button id="btnImportFollowing">导入关注</button>
+          <button id="btnCheckNow">立即检查</button>
+        </div>
+        <p class="hint">
+          用法：打开某个抖音博主主页 → 点「+ 当前页博主」。Chrome 需保持打开。
+        </p>
+        <div id="toast" class="toast hidden"></div>
+      </section>
+
+      <section class="card">
+        <h2>监控列表 <span id="creatorCount" class="muted"></span></h2>
+        <ul id="creatorList" class="list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>设置</h2>
+        <label>
+          微信推送 Key（Server酱）
+          <input id="serverChanKey" type="password" placeholder="SCT..." />
+        </label>
+        <label>
+          轮询间隔（分钟，建议 2）
+          <input id="intervalMinutes" type="number" min="1" max="30" />
+        </label>
+        <div class="two">
+          <label>
+            静默开始
+            <input id="quietStart" type="time" />
+          </label>
+          <label>
+            静默结束
+            <input id="quietEnd" type="time" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="btnSave">保存设置</button>
+          <button id="btnTestPush">测试推送</button>
+          <button id="btnDigest">发一条摘要</button>
+        </div>
+        <p class="hint muted">静默时段内不会单条打扰，避免半夜被微信吵醒。</p>
+      </section>
+
+      <section class="card">
+        <h2>状态</h2>
+        <p id="statusLine" class="muted">—</p>
+      </section>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
